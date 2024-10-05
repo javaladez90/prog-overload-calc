@@ -1,11 +1,36 @@
 import datetime
 import math
+import json
+import os
 
 # Set up basic data storage
 #List to store workout data
 
 workout_data = []
-
+print("Program started")
+def load_workout_data():
+    global workout_data
+    print("Loading workout data...")
+    print(f"Current working directory: {os.getcwd()}")
+    if os.path.exists('workout_data.json'):
+        with open('workout_data.json', 'r') as file:
+            try:
+                workout_data = json.load(file)
+                print("Workout data loaded successfully!\n")
+                print(f"Loaded data: {workout_data}\n") #debug statement to verify loaded data
+            except json.JSONDecodeError:
+                print("Error loading workout data. Starting with an empty list.\n")
+                workout_data = []
+    else:
+        print("No existing workout data found. Starting fresh.\n")
+        
+#Function to save workout data to JSON file
+def save_workout_data():
+    with open('workout_data.json', 'w') as file:
+        json.dump(workout_data, file, indent=4)
+    print("Workout data saved successfully!\n")
+    
+    
 # function to add new workout session data
 def add_workout_data():
     #ask user for workout details
@@ -16,6 +41,9 @@ def add_workout_data():
         date = f"{date_input[:4]}-{date_input[4:6]}-{date_input[6:]}"
     else:
         date = date_input
+        
+    #Corrext time zone
+    date = datetime.datetime.now().strftime("%Y-%m-%d") if date == datetime.datetime.now().strftime("%Y-%m-%d") else date
         
     exercise = input("Enter the exercise: ").lower().replace(" ","_")
     weight = float(input("Enter the weight lifted (lbs): "))
@@ -33,6 +61,7 @@ def add_workout_data():
     workout_data.append(session)
     print("Workout data added successfully!\n")
     
+    save_workout_data()
 #fucntion to view workout data
 def view_workout_data():
     if not workout_data:
@@ -40,12 +69,32 @@ def view_workout_data():
         return 
     
     print("Workout Data:")
-    for session in workout_data:
-        print(f"Date: {session['data']}, Exercise: {session['exercise']}, Weight: {session['weight']} lbs, Reps: {session['reps']}")
+    for index,session in enumerate(workout_data):
+        print(f"{index + 1}. Date: {session['date']}, Exercise: {session['exercise']}, Weight: {session['weight']} lbs, Reps: {session['reps']}")
     print("\n")
     
+def delete_workout_data():
+    if not workout_data:
+        print("No workout data available to delete.\n")
+        return
+    
+    view_workout_data()
+    try:
+        entry_number = int(input("Enter the number of the workout you want to delete: "))
+        if 1 <= entry_number <= len(workout_data):
+            deleted_session = workout_data.pop(entry_number - 1)
+            print(f"Deleted workout: Date: {deleted_session['date']}, Exercise: {deleted_session['exercise']}, Weight: {deleted_session['weight']} lbs, Reps: {deleted_session['reps']}\n")
+            #Save the workout
+            save_workout_data()
+        else:
+            print("Invalid entry number. \n")
+    except ValueError:
+        print("Invalid input. Please enter a number. \n")
+        
+
+    
 #function to suggest the next weight for progressive overload
-def suggest_next_weight(exercise_name, target_reps, increment=2.5):
+def suggest_next_weight(exercise_name, target_reps):
     #filter out data for the selected exercise
     exercise_data = [d for d in workout_data if d["exercise"] == exercise_name]
     
@@ -93,9 +142,10 @@ def main():
         print("1. Add workout data")
         print("2. View workout data")
         print("3. Suggest next weight for progressive overload")
-        print("4. Quit")
+        print("4. Delete workout data")
+        print("5. Quit")
         
-        choice = input("Enter your choice (1-4): ")
+        choice = input("Enter your choice (1-5): ")
         
         if choice == '1':
             add_workout_data()
@@ -106,6 +156,8 @@ def main():
             target_reps = int(input("Enter the target number of reps: "))
             suggest_next_weight(exercise_name, target_reps)
         elif choice == '4':
+            delete_workout_data()
+        elif choice == '5':
             print("Exiting the program. Goodbye!")
             break;
         else: 
