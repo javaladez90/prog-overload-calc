@@ -7,28 +7,32 @@ import os
 #List to store workout data
 
 workout_data = []
-print("Program started")
+
 def load_workout_data():
     global workout_data
-    print("Loading workout data...")
-    print(f"Current working directory: {os.getcwd()}")
-    if os.path.exists('workout_data.json'):
-        with open('workout_data.json', 'r') as file:
+    print("Loading workout data...") #Debug
+    print(f"Current working directory: {os.getcwd()}") #COnfimr directory
+    file_path = os.path.join(os.path.dirname(__file__), 'workout_data.json')
+    if os.path.exists(file_path):
+        print("File exists: 'workout_data.json' found") #debug
+        with open(file_path, 'r') as file:
             try:
                 workout_data = json.load(file)
                 print("Workout data loaded successfully!\n")
-                print(f"Loaded data: {workout_data}\n") #debug statement to verify loaded data
-            except json.JSONDecodeError:
-                print("Error loading workout data. Starting with an empty list.\n")
+                print(f"Loaded data: {workout_data}\n") #debug
+            except json.JSONDecodeError as e:
+                print(f"Error loading workout data: {e}. Starting with an empty list.\n")
                 workout_data = []
     else:
         print("No existing workout data found. Starting fresh.\n")
         
 #Function to save workout data to JSON file
 def save_workout_data():
-    with open('workout_data.json', 'w') as file:
+    print("Saving workout data...") #debug
+    file_path = os.path.join(os.path.dirname(__file__), 'workout_data.json')
+    with open(file_path, 'w') as file:
         json.dump(workout_data, file, indent=4)
-    print("Workout data saved successfully!\n")
+    print("Workout dta saved successfully!\n")
     
     
 # function to add new workout session data
