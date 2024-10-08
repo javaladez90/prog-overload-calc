@@ -2,38 +2,32 @@ import datetime
 import math
 import json
 import os
+import sqlite3
+import matplotlib.pyplot as plt
 
 # Set up basic data storage
 #List to store workout data
 
 workout_data = []
 
-def load_workout_data():
-    global workout_data
-    print("Loading workout data...") #Debug
-    print(f"Current working directory: {os.getcwd()}") #COnfimr directory
-    file_path = os.path.join(os.path.dirname(__file__), 'workout_data.json')
-    if os.path.exists(file_path):
-        print("File exists: 'workout_data.json' found") #debug
-        with open(file_path, 'r') as file:
-            try:
-                workout_data = json.load(file)
-                print("Workout data loaded successfully!\n")
-                print(f"Loaded data: {workout_data}\n") #debug
-            except json.JSONDecodeError as e:
-                print(f"Error loading workout data: {e}. Starting with an empty list.\n")
-                workout_data = []
-    else:
-        print("No existing workout data found. Starting fresh.\n")
-        
-#Function to save workout data to JSON file
-def save_workout_data():
-    print("Saving workout data...") #debug
-    file_path = os.path.join(os.path.dirname(__file__), 'workout_data.json')
-    with open(file_path, 'w') as file:
-        json.dump(workout_data, file, indent=4)
-    print("Workout dta saved successfully!\n")
-    
+def connect_db():
+    return sqlite3.connect('workout_data.db')
+
+def initialize_db():
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS workouts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            exercise TEXT NOT NULL,
+            weight REAL NOT NULL,
+            reps INTEGER NOT NULL
+        )
+        ''')
+    conn.commit()
+    conn.close()
+
     
 # function to add new workout session data
 def add_workout_data():
@@ -53,66 +47,71 @@ def add_workout_data():
     weight = float(input("Enter the weight lifted (lbs): "))
     reps = int(input("Enter the number of reps: "))
     
-    #Create a dictionary 
-    session = {
-        "date": date,
-        "exercise": exercise,
-        "weight": weight,
-        "reps": reps
-    }
     
-    #Append the workout session to the workout_data_list
-    workout_data.append(session)
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO workouts (date, exercise, weight, reps)
+        VALUES (?, ?, ?, ?)
+        ''', (date,exercise, weight, reps))
+    conn.commit()
+    conn.close()
     print("Workout data added successfully!\n")
     
-    save_workout_data()
+    
+
 #fucntion to view workout data
 def view_workout_data():
-    if not workout_data:
-        print("No workout data available. \n")
-        return 
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM workouts')
+    rows = cursor.fetchall()
+    conn.close()
+    
+    if not rows:
+        print("No workout data available.\n")
+        return
     
     print("Workout Data:")
-    for index,session in enumerate(workout_data):
-        print(f"{index + 1}. Date: {session['date']}, Exercise: {session['exercise']}, Weight: {session['weight']} lbs, Reps: {session['reps']}")
+    for row in rows:
+        print(f"{row[0]}. Date: {row[1]}, Exercise: {row[2]}, Weight: {row[3]} lbs, Reps: {row[4]}")
     print("\n")
     
 def delete_workout_data():
-    if not workout_data:
-        print("No workout data available to delete.\n")
-        return
+   view_workout_data()
+   try:
+        entry_id = int(input("Enter the ID of the workout you want to delete: "))
+   
+        conn = connect_db()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM workouts WHERE id = ?', (entry_id))
+        conn.commit()
+        conn.close()
+        print("Workout deleted successfully!\n")
+   except ValueError:
+       print("Invalid input. Please enter a valid workout ID.\n")
     
-    view_workout_data()
-    try:
-        entry_number = int(input("Enter the number of the workout you want to delete: "))
-        if 1 <= entry_number <= len(workout_data):
-            deleted_session = workout_data.pop(entry_number - 1)
-            print(f"Deleted workout: Date: {deleted_session['date']}, Exercise: {deleted_session['exercise']}, Weight: {deleted_session['weight']} lbs, Reps: {deleted_session['reps']}\n")
-            #Save the workout
-            save_workout_data()
-        else:
-            print("Invalid entry number. \n")
-    except ValueError:
-        print("Invalid input. Please enter a number. \n")
-        
 
     
 #function to suggest the next weight for progressive overload
 def suggest_next_weight(exercise_name, target_reps):
-    #filter out data for the selected exercise
-    exercise_data = [d for d in workout_data if d["exercise"] == exercise_name]
-    
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM workouts WHERE exercise = ? ORDER BY date', (exercise_name,))
+    exercise_data = cursor.fetchall()
+    conn.close()
+ 
     if not exercise_data:
         print(f"No data available for the exercise '{exercise_name}'. Please provide your initial weight.")
         return None
     
     # sort data by date
-    exercise_data.sort(key=lambda x: x['date'])
+    
     
     #get the most recent data
     latest_record = exercise_data[-1]
-    weight = latest_record["weight"]
-    reps = latest_record["reps"]
+    weight = latest_record[3]
+    reps = latest_record[4]
     
     #calculate the next weight suggestion using a formula based on reps and weight 
     one_rep_max = weight * (1 + reps / 30)
@@ -141,6 +140,8 @@ def suggest_next_weight(exercise_name, target_reps):
 
 #Menu to interact with the program
 def main():
+    initialize_db()
+    
     while True:
         print("What would you like to do?")
         print("1. Add workout data")
