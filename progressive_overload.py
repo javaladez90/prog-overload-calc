@@ -74,7 +74,7 @@ def view_workout_data():
     
     print("Workout Data:")
     for row in rows:
-        print(f"{row[0]}. Date: {row[1]}, Exercise: {row[2]}, Weight: {row[3]} lbs, Reps: {row[4]}")
+        print(f"ID: {row[0]}. Date: {row[1]}, Exercise: {row[2]}, Weight: {row[3]} lbs, Reps: {row[4]}")
     print("\n")
     
 def delete_workout_data():
@@ -84,12 +84,14 @@ def delete_workout_data():
    
         conn = connect_db()
         cursor = conn.cursor()
-        cursor.execute('DELETE FROM workouts WHERE id = ?', (entry_id))
+        cursor.execute('DELETE FROM workouts WHERE id = ?', (entry_id,))
         conn.commit()
         conn.close()
         print("Workout deleted successfully!\n")
    except ValueError:
        print("Invalid input. Please enter a valid workout ID.\n")
+   except sqlite3.Error as e:
+       print(f"Database error: {e} \n")
     
 
     
@@ -105,27 +107,25 @@ def suggest_next_weight(exercise_name, target_reps):
         print(f"No data available for the exercise '{exercise_name}'. Please provide your initial weight.")
         return None
     
-    # sort data by date
+    #calculate total volume and average weight for progressive overload
+    total_weight = sum(record[3] * record[4] for record in exercise_data)
+    total_reps = sum(record[4] for record in exercise_data)
+    avg_weight = total_weight / total_reps
     
-    
-    #get the most recent data
-    latest_record = exercise_data[-1]
-    weight = latest_record[3]
-    reps = latest_record[4]
-    
-    #calculate the next weight suggestion using a formula based on reps and weight 
-    one_rep_max = weight * (1 + reps / 30)
-    #Adjust weight increment based on target reps
+    #suggest the next weight average weight as baseline
+    one_rep_max = avg_weight * (1 + (total_reps / len(exercise_data)) / 30)
     if target_reps > 1:
         next_weight = one_rep_max / (1 + target_reps / 30)
     else:
         next_weight = one_rep_max
-    next_weight = round(next_weight, 2) # Round to 2 decimal places
+    next_weight = round(next_weight, 2)
     
-
+    print(f"Based on all your previous sessions, the suggested weight for {target_reps} reps is {next_weight} lbs. \n")
     
-    print(f"Based on your last session of {weight} lbs for {reps} reps, the suggested for {target_reps} reps is {next_weight} lbs. \n")
- 
+    #
+    
+    
+   
 
     #Recommend 1rm, 3rm, and 5rm
     
@@ -138,6 +138,48 @@ def suggest_next_weight(exercise_name, target_reps):
     
     return next_weight
 
+def plot_workout_data():
+    conn = connect_db()
+    cursor = conn.cursor()
+    exercise_name = input("Enter the exercise name to plot: ").lower().replace(" ", "_")
+    cursor.execute('SELECT date, weight, reps FROM workouts WHERE exercise = ? ORDER BY date', (exercise_name,))
+    rows = cursor.fetchall()
+    conn.close()
+    
+    if not rows:
+        print("No workout data available for the selected exercise.\n")
+        return
+    
+    #Extract data 
+    dates = [datetime.datetime.strptime(row[0], "%Y-%m-%d") for row in rows]
+    weights = [row[1] for row in rows]
+    progressive_overload = []
+    
+    #Calculate progressive overload bsed on all previous session
+    total_weight = 0
+    total_reps = 0
+    for row in rows:
+        total_weight += row[1] * row[2]
+        total_reps += row[2]
+        avg_weight = total_weight / total_reps
+        one_rep_max = avg_weight * (1 + (total_reps / len(rows)) / 30)
+        progressive_overload.append(round(one_rep_max, 2))
+    
+    #Plot the data 
+    plt.figure(figsize=(10, 5))
+    plt.plot(dates, weights, marker='o', linestyle='-', color='b', label='Actual Weight Lifted')
+    plt.plot(dates, progressive_overload, marker='x', linestyle='--', color='r', label='Suggested Progressive Overload')
+    plt.xlabel('Date')
+    plt.ylabel('Weight Lifted (lbs)')
+    plt.title('Progression Over Time with suggested Progressive Overload')
+    plt.xticks(rotation=45)
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+    plt.savefig('workout_progress.png')
+    print("Plot saved as 'workout_progress.png.")
+
 #Menu to interact with the program
 def main():
     initialize_db()
@@ -148,9 +190,10 @@ def main():
         print("2. View workout data")
         print("3. Suggest next weight for progressive overload")
         print("4. Delete workout data")
-        print("5. Quit")
+        print("5. Plot Workout data")
+        print("6. Quit")
         
-        choice = input("Enter your choice (1-5): ")
+        choice = input("Enter your choice (1-6): ")
         
         if choice == '1':
             add_workout_data()
@@ -163,6 +206,8 @@ def main():
         elif choice == '4':
             delete_workout_data()
         elif choice == '5':
+            plot_workout_data()
+        elif choice == '6':
             print("Exiting the program. Goodbye!")
             break;
         else: 
